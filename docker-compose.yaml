@@ -1,0 +1,214 @@
+x-airflow-common: &airflow-common
+  # image: ${AIRFLOW_IMAGE_NAME}
+  build: ./airflow
+  environment:
+    AIRFLOW__CORE__EXECUTOR: ${AIRFLOW__CORE__EXECUTOR}
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__CORE__LOAD_EXAMPLES: ${AIRFLOW__CORE__LOAD_EXAMPLES}
+    
+    # Python libraries for RTE ingestion (Moved to Dockerfile)
+    # _PIP_ADDITIONAL_REQUIREMENTS: "requests beautifulsoup4 python-dotenv pytest pymongo"
+    
+    PYTHONPATH: /opt/airflow/src
+    
+    DB_HOST: postgres
+    DB_NAME: ${POSTGRES_DB}
+    DB_USER: ${POSTGRES_USER}
+    DB_PASSWORD: ${POSTGRES_PASSWORD}
+    
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./src:/opt/airflow/src
+    - ./datalake:/opt/airflow/datalake
+    
+  user: "${AIRFLOW_UID}:0"
+  
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  # =========================
+  # POSTGRES
+  # =========================
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+      - postgres_logs:/var/log/postgresql
+    command: ["postgres", "-c", "logging_collector=on", "-c", "log_destination=stderr,csvlog", "-c", "log_directory=/var/log/postgresql", "-c", "log_filename=postgresql.log"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 5s
+      retries: 5
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: root
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+  # =========================
+  # AIRFLOW
+  # =========================
+  airflow-init:
+    <<: *airflow-common
+    command: >
+      bash -c "airflow db migrate && airflow users create --username airflow --password airflow --firstname Alimou --lastname Santou --role Admin --email alimousantou@gmail.com"
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  # =========================
+  # LOKI
+  # =========================
+  loki:
+    image: grafana/loki:2.9.3
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+
+  # =========================
+  # PROMTAIL
+  # =========================
+  promtail:
+    image: grafana/promtail:2.9.3
+    volumes:
+      - ./airflow/logs:/var/log/airflow
+      - mongo_logs:/var/log/mongodb
+      - postgres_logs:/var/log/postgresql
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+
+  # =========================
+  # GRAFANA
+  # =========================
+  grafana:
+    image: grafana/grafana:10.2.3
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./monitoring/grafana/data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - loki
+      - prometheus
+
+  # =========================
+  # MONGODB
+  # =========================
+  mongo:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongo_data:/data/db
+      - mongo_logs:/var/log/mongodb
+    # Enable systemLog to file for Promtail to pickup
+    command: ["mongod", "--logpath", "/var/log/mongodb/mongod.log", "--bind_ip_all"]
+
+  mongo-express:
+    image: mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: password
+    depends_on:
+      - mongo
+
+  mongodb-exporter:
+    image: bitnami/mongodb-exporter:latest
+    ports:
+      - "9216:9216"
+    environment:
+      - MONGODB_URI=mongodb://admin:password@mongo:27017
+    command: ["--collector.dbstats"]
+    depends_on:
+      - mongo
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+    - 8082:8080
+    volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:ro
+    - /sys:/sys:ro
+    - /var/lib/docker/:/var/lib/docker:ro
+    depends_on:
+    - mongo
+
+  # =========================
+  # PROMETHEUS
+  # =========================
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+
+volumes:
+  postgres_data:
+  mongo_data:
+  mongo_logs:
+  postgres_logs:
+  prometheus_data:

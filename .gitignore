@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+airflow/logs/*
+!airflow/logs/.gitkeep
+mongo_logs/
+postgres_logs/
+
+# Data Directories (Docker volumes/binds)
+datalake/*
+!datalake/.gitkeep
+monitoring/grafana/data/*
+!monitoring/grafana/data/.gitkeep
+
+# Temporary/Generated Files
+.pytest_cache/
+.coverage

@@ -2,21 +2,21 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, avg, count, to_timestamp, current_timestamp
 import os
 
+
 def run_spark_job():
     mongo_spark_version = "10.4.0"
     postgres_driver_version = "42.6.0"
-    
+
     packages = [
         f"org.mongodb.spark:mongo-spark-connector_2.12:{mongo_spark_version}",
         f"org.postgresql:postgresql:{postgres_driver_version}"
     ]
-    
 
     # Fetch configuration from Environment Variables
     mongo_uri = os.getenv("MONGO_URI", "mongodb://admin:password@mongo:27017")
     mongo_db = os.getenv("MONGO_DB_NAME", "rte")
     mongo_collection = os.getenv("MONGO_COLLECTION", "eco2mix_regional_tr")
-    
+
     postgres_user = os.getenv("DB_USER", "airflow")
     postgres_password = os.getenv("DB_PASSWORD", "airflow")
     postgres_host = os.getenv("DB_HOST", "postgres")
@@ -33,19 +33,19 @@ def run_spark_job():
         .getOrCreate()
 
     df = spark.read.format("mongodb").load()
-    
+
     print("Schema from MongoDB:")
     df.printSchema()
 
-    # Transformation: 
+    # Transformation:
     # 1. Cast numeric columns
     # 2. Group by Region, Nature AND Date/Time (to keep history)
     # 3. Add processing timestamp
-    
+
     df_processed = df.withColumn("consommation", col("consommation").cast("int")) \
                      .withColumn("ech_physiques", col("ech_physiques").cast("int")) \
                      .withColumn("date_heure", to_timestamp(col("date_heure")))
-    
+
     agg_df = df_processed.groupBy("libelle_region", "nature", "date_heure") \
         .agg(
             avg("consommation").alias("avg_consumption"),
@@ -68,6 +68,7 @@ def run_spark_job():
 
     print("Data successfully written to PostgreSQL")
     spark.stop()
+
 
 if __name__ == "__main__":
     run_spark_job()

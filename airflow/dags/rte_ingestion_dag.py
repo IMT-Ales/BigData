@@ -4,7 +4,6 @@ from airflow.utils.dates import days_ago
 import requests
 import pymongo
 import os
-import json
 from datetime import timedelta
 
 RTE_API_URL = "https://reseaux-energies-rte.opendatasoft.com/api/explore/v2.1/catalog/datasets/eco2mix-regional-tr/records"
@@ -24,15 +23,16 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
+
 def fetch_and_store_data(**kwargs):
     limit = 100
     offset = 0
     total_count = 0
-    
+
     client = pymongo.MongoClient(MONGO_URI)
     db = client[DB_NAME]
     collection = db[COLLECTION_NAME]
-    
+
     collection.delete_many({})
     print(f"Cleared collection {COLLECTION_NAME}")
 
@@ -46,14 +46,14 @@ def fetch_and_store_data(**kwargs):
             "limit": limit,
             "offset": offset
         }
-        
+
         print(f"Fetching offset {offset}...")
         response = requests.get(RTE_API_URL, params=params)
         response.raise_for_status()
-        
+
         data = response.json()
         results = data.get("results", [])
-        
+
         if not results:
             break
 
@@ -61,14 +61,15 @@ def fetch_and_store_data(**kwargs):
         count = len(results)
         total_count += count
         print(f"Inserted {count} records.")
-        
+
         if count < limit:
             break
-            
+
         offset += limit
 
     print(f"Total records ingested: {total_count}")
     client.close()
+
 
 with DAG(
     'rte_ingestion',

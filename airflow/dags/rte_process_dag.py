@@ -1,7 +1,6 @@
 from airflow import DAG, Dataset
 from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
-from datetime import timedelta
 import sys
 import os
 

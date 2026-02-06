@@ -1,5 +1,7 @@
 x-airflow-common: &airflow-common
-  build: ./airflow
+  build:
+    context: .
+    dockerfile: ./airflow/Dockerfile
   environment:
     AIRFLOW__CORE__EXECUTOR: ${AIRFLOW__CORE__EXECUTOR}
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}

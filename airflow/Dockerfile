@@ -16,13 +16,5 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 USER airflow
 
 # Install PySpark and additional providers
-RUN pip install --no-cache-dir \
-    "apache-airflow==${AIRFLOW_VERSION}" \
-    pyspark==3.5.0 \
-    apache-airflow-providers-apache-spark \
-    apache-airflow-providers-mongo \
-    requests \
-    beautifulsoup4 \
-    python-dotenv \
-    pytest \
-    pymongo
+COPY requirements.txt /requirements.txt
+RUN pip install --no-cache-dir -r /requirements.txt

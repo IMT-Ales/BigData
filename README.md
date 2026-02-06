@@ -60,6 +60,6 @@ Un job PySpark est déclenché automatiquement après l'ingestion.
 
 ## 🙍‍♂️ Groupes
 
-* Maxence Tourniayre
-* Thomas Nalix
+* Maxence Tourniayre (Xamez)
+* Thomas Nalix 
 * Rohart Yoann

@@ -42,6 +42,10 @@ Une fois le `docker compose up -d` effectué, voici comment utiliser et vérifie
 *   **Important** : Par défaut, les DAGs sont en "Pause". Cliquez sur le bouton toggle (ON/OFF) à gauche du nom du DAG pour l'activer.
 *   Le scheduler lancera automatiquement les tâches selon la planification. Pour forcer une exécution immédiate, cliquez sur le bouton "Play" à droite de la ligne du DAG.
 
+![Airflow Dashboard](imgs/airflow-dashboard.png)
+
+![Airflow Graph](imgs/airflow.png)
+
 ### 2. Vérifier les Données (Grafana & Postgres)
 
 #### Via Grafana (Visualisation)
@@ -49,14 +53,16 @@ Une fois le `docker compose up -d` effectué, voici comment utiliser et vérifie
 *   **Login/Mdp** : `admin` / `admin`
 *   Allez dans le menu **Dashboards**. Vous y trouverez des tableaux de bord pré-configurés pour visualiser les données énergétiques (graphiques de consommation, mix énergétique) ainsi que le monitoring technique.
 
+![Grafana Dashboard](imgs/postgres-dashboard.png)
+
 #### Via PostgreSQL (Accès Direct)
 Pour vérifier que les données sont bien arrivées en base :
 *   Connectez-vous à la base de données (via pgAdmin ou CLI) :
     *   **Port** : `5433` (attention, c'est 5433 en local pour ne pas confict avec un postges local)
     *   **User/Mdp/DB** : `airflow` / `airflow` / `airflow` (ou `rte_data` selon config)
-*   Exécutez la requête SQL suivante :
+*   Exécutez la requête SQL suivante :  
     ```sql
-    SELECT * FROM regional_energy_stats ORDER BY date_time DESC LIMIT 10;
+    SELECT * FROM public.regional_energy_stats;
     ```
     Vous devriez voir les dernières données agrégées.
 

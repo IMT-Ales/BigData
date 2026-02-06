@@ -16,3 +16,19 @@ scrape_configs:
     labels:
       job: postgres
       __path__: /var/log/postgresql/*.log
+
+- job_name: airflow
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      job: airflow_logs
+      __path__: /var/log/airflow/**/*.log
+
+- job_name: mongodb
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      job: mongodb
+      __path__: /var/log/mongodb/*.log
